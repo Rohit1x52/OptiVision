@@ -44,7 +44,7 @@ class DatasetValidator:
                     if img.lower().endswith(VALID_EXTENSIONS)
                 ]
 
-                if len(images) == 0;
+                if len(images) == 0:
                     empty_classes.append(class_name)
 
             if empty_classes:
