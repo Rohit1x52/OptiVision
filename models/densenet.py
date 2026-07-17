@@ -96,7 +96,7 @@ class DenseNetModel:
     # Print Model Summary
     def summary(self):
         print("-" * 20)
-        print("DenseNet Mondel Summary")
+        print("DenseNet Model Summary")
         print("-" * 20)
 
         print(f"Model              : {self.model_name}")
