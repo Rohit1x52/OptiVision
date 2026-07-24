@@ -7,12 +7,21 @@
 # Scheduler
 # DataLoaders
 # Training configuration
+# Forward Pass
+# Loss computation
+# Backpropagation
+# Gradient reset
+# Optimizer parameter updates
+# Batch accuracy computation
+# Single-epoch training (train_one_epoch)
+
 
 from typing import Optional
 import torch
 import torch.nn as nn
 from training.optimizer import OptimizerFactory
 from training.scheduler import SchedulerFactory
+from tqdm import tqdm
 
 class Trainer:
     """
@@ -103,5 +112,84 @@ class Trainer:
             return torch.device("cuda")
         
         return torch.device("cpu")
-    
-    
+
+    ## Forward Pass
+    def _forward_pass(self, images):
+        outputs = self.model(images)
+        return outputs
+
+    ## Loss Computation
+    def _compute_loss(self, outputs, labels):
+        loss = self.criterion(outputs, labels)
+        return loss
+
+    ## Backward Pass
+    def _backward_pass(self, loss):
+        loss.backward()
+
+    ## Optimizer Step
+    def _optimizer_step(self):
+        self.optimizer.step()
+
+    ## Gradient reset
+    def _zero_grad(self):
+        self.optimizer.zero_grad()
+
+    ## Accuracy Calculation
+    @staticmethod
+    def _calculate_accuracy(outputs, labels):
+        predictions = outputs.argmax(dim=1)
+        correct = (predictions == labels).sum().item()
+        total = labels.size(0)
+        return correct, total
+
+    ## Core Training Loop
+    def train_one_epoch(self):
+        self.model.train()
+        running_loss = 0.0
+        total_correct = 0
+        total_samples = 0
+        progress_bar = tqdm(
+            self.train_loader,
+            desc=f"Epoch {self.current_epoch + 1} / {self.num_epochs}",
+            leave=False
+        )
+        for images, labels in progress_bar:
+            images = images.to(self.device)
+            labels = labels.to(self.device)
+
+            ## Reset Gradients
+            self._zero_grad()
+
+            ## Forward Pass
+            outputs = self._forward_pass(images)
+
+            ## Loss
+            loss = self._compute_loss(outputs, labels)
+
+            ## Backpropagation
+            self._backward_pass(loss)
+
+            ## Update Parameters
+            self._optimizer_step()
+
+            ## Statistics
+            batch_Size = labels.size(0)
+            running_loss += loss.item() * batch_Size
+            correct, total = self._calculate_accuracy(outputs, labels)
+            total_correct += correct
+            total_sample += total
+            avg_loss = running_loss / total_samples
+            avg_accuracy = 100 * total_correct / total_samples
+            progress_bar.set_postfix({
+                "Loss" : f"{avg_loss:.4f}",
+                "Acc": f"{avg_accuracy:.2f}%"
+            })
+
+        epoch_loss = running_loss / total_samples
+        epoch_accuracy = 100 * total_correct / total_samples
+        self.history["train_loss"].append(epoch_loss)
+        self.history["train_accuracy"].append(epoch_accuracy)
+        current_lr = self.optimizer.param_groups[0]["lr"]
+        self.history["learning_rate"].append(current_lr)
+        return epoch_loss, epoch_accuracy
