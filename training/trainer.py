@@ -14,6 +14,14 @@
 # Optimizer parameter updates
 # Batch accuracy computation
 # Single-epoch training (train_one_epoch)
+# Model evaluation mode
+# Validation loss computation
+# Validation accuracy computation
+# Precision computation
+# Recall computation
+# F1-score computation
+# Validation metrics collection
+# Validation history logging
 
 
 from typing import Optional
@@ -22,6 +30,7 @@ import torch.nn as nn
 from training.optimizer import OptimizerFactory
 from training.scheduler import SchedulerFactory
 from tqdm import tqdm
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
 class Trainer:
     """
@@ -193,3 +202,77 @@ class Trainer:
         current_lr = self.optimizer.param_groups[0]["lr"]
         self.history["learning_rate"].append(current_lr)
         return epoch_loss, epoch_accuracy
+
+    ## Validation Method
+    def validate(self):
+        if self.val_loader is None:
+           raise ValueError("Validation DataLoader is not provided") 
+
+        ## Evaluation Mode
+        self.model.eval()
+        running_loss = 0.0
+        predictions = []
+        targets = []
+
+        ## Disable Gradient Computation
+        with torch.no_grad():
+            progress_bar = tqdm(
+                self.val_loader,
+                desc="Validation",
+                leave=False
+            )
+            for images, labels in progress_bar:
+                images = images.to(self.device)
+                labels = labels.to(self.device)
+
+                ## Forward Pass
+                outputs = self._forward_pass(images)
+
+                ## Loss
+                loss = self._compute_loss(outputs, labels)
+                running_loss += loss.item() * labels.size(0)
+
+                ## Predictions
+                preds = outputs.argmax(dim=1)
+                predictions.extend(
+                    preds.cpu().numpy()
+                )
+                targets.extend(
+                    labels.cpu().numpy()
+                )
+
+        ## Epoch Loss
+        epoch_loss = running_loss / len(self.val_loader.dataset)
+
+        ## Metrics
+        accuracy = accuracy_score(targets, predictions)
+        precision = precision_score(
+            targets,
+            predictions,
+            average="weighted",
+            zero_division=0
+        )
+        recall = recall_score(
+            targets,
+            predictions,
+            average="weighted",
+            zero_division=0
+        )
+        f1 = f1_score(
+            targets,
+            predictions,
+            average="weighted",
+            zero_division=0
+        )
+        metrics = {
+            "loss": epoch_loss,
+            "accuracy": accuracy * 100,
+            "precision": precision * 100,
+            "recall": recall * 100,
+            "f1_score": f1 * 100
+        }
+
+        ## Save History
+        self.history["val_loss"].append(epoch_loss)
+        self.history["val_accuracy"].append(metrics["accuracy"])
+        return metrics
